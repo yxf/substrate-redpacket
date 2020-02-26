@@ -42,7 +42,7 @@ pub type BalanceOf<T> =
 pub trait Trait: system::Trait {
 	/// The overarching event type.
 	type Event: From<Event<Self>> + Into<<Self as system::Trait>::Event>;
-
+	
 	type Currency: ReservableCurrency<Self::AccountId>;
 
 	/// A u32 type 
@@ -58,6 +58,7 @@ pub struct Packet<PacketId, Balance, BlockNumber, AccountId> {
 	count: u32,
 	expires_at: BlockNumber,
 	owner: AccountId,
+	distributed: bool,
 }
 
 // This module's storage items.
@@ -86,13 +87,14 @@ decl_module! {
 		/// Create a new RedPacket
 		/// This will reserve balances(`quota` * `count`) of creator to prevent insufficient balance when distributing.
 		/// 
-		/// - `quota`: Amount per person will be get.
+		/// - `quota`: Amount per person will be received.
 		/// - `count`: Number of participants.
 		/// - `expires`: Expires after `expires` block number passed.
 		pub fn create(origin, quota: BalanceOf<T>, count: u32, expires: T::BlockNumber) -> DispatchResult {
 
 			ensure!(count > 0, Error::<T>::GreaterThanZero);
 			ensure!(quota > Zero::zero(), Error::<T>::GreaterThanZero);
+			ensure!(expires > Zero::zero(), Error::<T>::GreaterThanZero);
 
 			let sender = ensure_signed(origin)?;
 
@@ -118,7 +120,8 @@ decl_module! {
 				unclaimed: total,
 				count: count,
 				expires_at: expires_at,
-				owner: sender.clone(), 
+				owner: sender.clone(),
+				distributed: false, 
 			};
 
 			<Packets<T>>::insert(id, new_packet);
@@ -141,7 +144,7 @@ decl_module! {
 			ensure!(current_block_number <= packet.expires_at , Error::<T>::Expired);
 
 			// Check RedPacket available
-			ensure!(packet.unclaimed > Zero::zero(), Error::<T>::AlreadyDistributed);
+			ensure!(packet.unclaimed > Zero::zero(), Error::<T>::Unavailable);
 
 			let claims =  Self::claims_of(packet_id);
 
@@ -168,6 +171,9 @@ decl_module! {
 
 			// Check owner
 			ensure!(packet.owner == owner, Error::<T>::NotOwner);
+			// Check distributed
+			ensure!(!packet.distributed, Error::<T>::AlreadyDistributed);
+
 			let current_block_number = <system::Module<T>>::block_number();
 
 			let expired = current_block_number > packet.expires_at;
@@ -192,6 +198,7 @@ decl_module! {
 				}
 
 				packet.unclaimed = Zero::zero();
+				packet.distributed = true;
 
 				<Packets<T>>::insert(id, packet);
 
@@ -221,9 +228,6 @@ decl_event!(
 
 		/// Distribute the RedPacket to claimers.
 		Distributed(PacketId, AccountId, Balance),
-
-		/// The RedPacket was Retrieved.
-		Retrieved(PacketId, AccountId, Balance),
 	}
 );
 
@@ -244,7 +248,226 @@ decl_error! {
 		CanNotBeDistributed,
 		/// Aleadly distributed
 		AlreadyDistributed,
+		/// Unavailable
+		Unavailable,
 
 	}
 }
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use balances::GenesisConfig;
+	use frame_support::{impl_outer_origin, assert_ok, assert_noop, parameter_types, weights::Weight};
+	use sp_core::H256;
+	// The testing primitives are very useful for avoiding having to work with signatures
+	// or public keys. `u64` is used as the `AccountId` and no `Signature`s are required.
+	use sp_runtime::{Perbill, traits::{BlakeTwo256, IdentityLookup}, testing::Header};
+
+	impl_outer_origin! {
+		pub enum Origin for Test  {}
+	}
+
+	// For testing the module, we construct most of a mock runtime. This means
+	// first constructing a configuration type (`Test`) which `impl`s each of the
+	// configuration traits of modules we want to use.
+	#[derive(Clone, Eq, PartialEq)]
+	pub struct Test;
+	parameter_types! {
+		pub const BlockHashCount: u64 = 250;
+		pub const MaximumBlockWeight: Weight = 1024;
+		pub const MaximumBlockLength: u32 = 2 * 1024;
+		pub const AvailableBlockRatio: Perbill = Perbill::one();
+	}
+	impl system::Trait for Test {
+		type Origin = Origin;
+		type Index = u64;
+		type Call = ();
+		type BlockNumber = u64;
+		type Hash = H256;
+		type Hashing = BlakeTwo256;
+		type AccountId = u64;
+		type Lookup = IdentityLookup<Self::AccountId>;
+		type Header = Header;
+		type Event = ();
+		type BlockHashCount = BlockHashCount;
+		type MaximumBlockWeight = MaximumBlockWeight;
+		type AvailableBlockRatio = AvailableBlockRatio;
+		type MaximumBlockLength = MaximumBlockLength;
+		type Version = ();
+		type ModuleToIndex = ();
+	}
+
+	parameter_types! {
+		pub const TransferFee: u64 = 0;
+		pub const CreationFee: u64 = 0;
+		pub const ExistentialDeposit: u64 = 0;
+	}
+	impl balances::Trait for Test {
+		type Balance = u64;
+		type OnFreeBalanceZero =  ();
+		type OnNewAccount = ();
+		type Event = ();
+		type TransferPayment = ();
+		type DustRemoval = ();
+		type ExistentialDeposit = ExistentialDeposit;
+		type TransferFee = TransferFee;
+		type CreationFee = CreationFee;
+	}
+	impl Trait for Test {
+		type Currency = balances::Module<Self>;
+		type Event = ();
+		type PacketId = u32;
+	}
+	type RedPackets = Module<Test>;
+
+	// This function basically just builds a genesis storage key/value store according to
+	// our desired mockup.
+	fn new_test_ext() -> sp_io::TestExternalities {
+		// system::GenesisConfig::default().build_storage::<Test>().unwrap().into()
+		let mut t = system::GenesisConfig::default().build_storage::<Test>().unwrap();
+		GenesisConfig::<Test> {
+			balances: vec![
+				(1, 100),
+				(2, 200),
+				(3, 300),
+				(4, 400),
+				(5, 1),
+			],
+			vesting: vec![]
+		}.assimilate_storage(&mut t).unwrap();
+		t.into()
+	}
+
+
+	#[test]
+	fn create_redpacket_should_work() {
+		new_test_ext().execute_with(|| {
+			assert_ok!(RedPackets::create(Origin::signed(1), 1, 5, 100));
+		});
+	}
+
+	#[test]
+	fn create_redpacket_should_fail_if_insufficient_balance() {
+		new_test_ext().execute_with(|| {
+			assert_noop!(RedPackets::create(Origin::signed(5), 1, 5, 100), Error::<Test>::InsufficientBalance);
+		});
+	}
+
+	#[test]
+	fn create_redpacket_should_failed_with_invalid_arguments() {
+		new_test_ext().execute_with(|| {
+			assert_noop!(RedPackets::create(Origin::signed(1), 0, 5, 100), Error::<Test>::GreaterThanZero);
+			assert_noop!(RedPackets::create(Origin::signed(1), 1, 0, 100), Error::<Test>::GreaterThanZero);
+			assert_noop!(RedPackets::create(Origin::signed(1), 1, 5, 0), Error::<Test>::GreaterThanZero);
+		});
+	}
+
+	#[test]
+	fn claim_should_work() {
+		new_test_ext().execute_with(|| {
+			RedPackets::create(Origin::signed(1), 1, 5, 100).ok();
+			let id = RedPackets::next_packet_id() - 1;
+			assert_ok!(RedPackets::claim(Origin::signed(2), id));
+			assert_ok!(RedPackets::claim(Origin::signed(3), id));
+		});
+	}
+
+	#[test]
+	fn claim_should_fail_if_expired() {
+		new_test_ext().execute_with(|| {
+			system::Module::<Test>::set_block_number(1);
+			RedPackets::create(Origin::signed(1), 1, 5, 100).ok();
+			let id = RedPackets::next_packet_id() - 1;
+			system::Module::<Test>::set_block_number(102);
+			assert_noop!(RedPackets::claim(Origin::signed(2), id), Error::<Test>::Expired);			
+		});
+	}
+
+	#[test]
+	fn claim_should_fail_if_unavailable(){
+		new_test_ext().execute_with(|| {
+			RedPackets::create(Origin::signed(1), 1, 2, 100).ok();
+			let id = RedPackets::next_packet_id() - 1;
+			RedPackets::claim(Origin::signed(2), id).ok();
+			RedPackets::claim(Origin::signed(3), id).ok();
+			assert_noop!(RedPackets::claim(Origin::signed(4), id), Error::<Test>::Unavailable);
+		});
+	}
+
+	#[test]
+	fn claim_should_fail_if_already_claimed() {
+		new_test_ext().execute_with(|| {
+			RedPackets::create(Origin::signed(1), 1, 2, 100).ok();
+			let id = RedPackets::next_packet_id() - 1;
+			RedPackets::claim(Origin::signed(2), id).ok();
+			assert_noop!(RedPackets::claim(Origin::signed(2), id), Error::<Test>::AlreadyClaimed);
+		});
+	}
+
+	#[test]
+	fn distribute_should_work(){
+		new_test_ext().execute_with(|| {
+			RedPackets::create(Origin::signed(1), 1, 2, 100).ok();
+			let id = RedPackets::next_packet_id() - 1;
+			RedPackets::claim(Origin::signed(2), id).ok();
+			RedPackets::claim(Origin::signed(3), id).ok();
+			assert_ok!(RedPackets::distribute(Origin::signed(1), id));
+
+			assert_eq!(balances::Module::<Test>::free_balance(&1), 100 - 2);
+			assert_eq!(balances::Module::<Test>::free_balance(&2), 200 + 1);
+			assert_eq!(balances::Module::<Test>::free_balance(&3), 300 + 1);
+		});
+	}
+
+	#[test]
+	fn distribute_should_fail_if_already_distributed(){
+		new_test_ext().execute_with(|| {
+			RedPackets::create(Origin::signed(1), 1, 2, 100).ok();
+			let id = RedPackets::next_packet_id() - 1;
+			RedPackets::claim(Origin::signed(2), id).ok();
+			RedPackets::claim(Origin::signed(3), id).ok();
+			assert_ok!(RedPackets::distribute(Origin::signed(1), id));
+			assert_noop!(RedPackets::distribute(Origin::signed(1), id), Error::<Test>::AlreadyDistributed);
+		});
+	}
+
+	#[test]
+	fn distribute_should_fail_if_not_owner() {
+		new_test_ext().execute_with(|| {
+			RedPackets::create(Origin::signed(1), 1, 2, 100).ok();
+			let id = RedPackets::next_packet_id() - 1;
+			RedPackets::claim(Origin::signed(2), id).ok();
+			RedPackets::claim(Origin::signed(3), id).ok();
+			assert_noop!(RedPackets::distribute(Origin::signed(4), id), Error::<Test>::NotOwner);
+		});
+	}
+
+	#[test]
+	fn distribute_should_fail_if_not_expired_and_with_remaining_amount() {
+		new_test_ext().execute_with(|| {
+			RedPackets::create(Origin::signed(1), 1, 2, 100).ok();
+			let id = RedPackets::next_packet_id() - 1;
+			RedPackets::claim(Origin::signed(2), id).ok();
+			assert_noop!(RedPackets::distribute(Origin::signed(1), id), Error::<Test>::CanNotBeDistributed);
+		});
+	}
+
+	#[test]
+	fn distribute_should_work_if_not_expired_and_no_remaining_amount() {
+		new_test_ext().execute_with(|| {
+			system::Module::<Test>::set_block_number(1);
+			RedPackets::create(Origin::signed(1), 1, 2, 100).ok();
+			let id = RedPackets::next_packet_id() - 1;
+			RedPackets::claim(Origin::signed(2), id).ok();
+			RedPackets::claim(Origin::signed(3), id).ok();
+			system::Module::<Test>::set_block_number(102);
+
+			assert_ok!(RedPackets::distribute(Origin::signed(1), id));
+		});
+	}
+
+}
+
+
 

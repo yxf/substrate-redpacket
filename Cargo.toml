@@ -2,7 +2,7 @@
 panic = 'unwind'
 
 [package]
-authors = ['Anonymous']
+authors = ['yxf']
 build = 'build.rs'
 edition = '2018'
 name = 'redpacket'
