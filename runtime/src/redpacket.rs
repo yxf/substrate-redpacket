@@ -190,17 +190,16 @@ decl_module! {
 				let claims =  Self::claims_of(id);
 				let quota = packet.total / <BalanceOf<T>>::from(packet.count);
 
+				// Update RedPacket first to prevent re-entry when error happened below loop logic
+				packet.distributed = true;
+				<Packets<T>>::insert(id, packet);
+
 				for user in claims.into_iter(){
 					if user != owner {
 						<T::Currency>::transfer(&owner, &user, quota, ExistenceRequirement::KeepAlive)?;
 						total_distributed += quota;
 					}
 				}
-
-				packet.unclaimed = Zero::zero();
-				packet.distributed = true;
-
-				<Packets<T>>::insert(id, packet);
 
 				Self::deposit_event(RawEvent::Distributed(id, owner, total_distributed));
 
