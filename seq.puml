@@ -1,0 +1,21 @@
+@startuml
+Creator->RedPacket: create
+Creator<--RedPacket: reserve funds
+
+RedPacket<-User1: claim
+RedPacket-->User1: ok
+
+RedPacket<-User2: claim
+RedPacket-->User2: ok
+
+...expired or finished...
+
+Creator -> RedPacket: distribute
+activate RedPacket
+
+RedPacket -> User1: transfer
+RedPacket -> User2: transfer
+
+deactivate RedPacket
+
+@enduml

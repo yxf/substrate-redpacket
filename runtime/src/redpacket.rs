@@ -231,7 +231,7 @@ decl_event!(
 );
 
 decl_error! {
-	/// Error for the treasury module.
+	/// Error
 	pub enum Error for Module<T: Trait> {
 		/// Sender's balance is too low.
 		InsufficientBalance,
