@@ -1,22 +1,22 @@
 @startuml
 Creator->RedPacket: create
 activate RedPacket
-RedPacket-->RedPacket: reserve funds and \nemit created
+RedPacket-->RedPacket: reserve funds and \nemit //Created//
 Creator<--RedPacket: success
 
 RedPacket<-User1: claim
-RedPacket-->RedPacket: emit claimed
+RedPacket-->RedPacket: emit //Claimed//
 RedPacket-->User1: ok
 
 RedPacket<-User2: claim
-RedPacket-->RedPacket: emit claimed
+RedPacket-->RedPacket: emit //Claimed//
 RedPacket-->User2: ok
 
-...expired or finished...
+... **expired or finished** ...
 
 Creator -> RedPacket: distribute
 RedPacket -> User1: transfer
 RedPacket -> User2: transfer
-RedPacket-->RedPacket: emit distributed
+RedPacket-->RedPacket: emit //Distributed//
 
 @enduml
