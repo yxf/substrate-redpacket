@@ -34,10 +34,13 @@ decl_storage! {
 
 ### Dispatchable functions and events
 
+Three dispatchable functions are defined:
+
 - `create` - Create a new RedPacket and reserve creator's funds.
 - `claim` - Store a claim record for distribution.
 - `distribute` - Unreserve creator's funds and do transfers.
 
+Declare events:
 
 ```rust
 decl_event!(
@@ -62,18 +65,34 @@ Interaction diagram:
 ![diagram](./seq.png)
 
 
+
 ### TODOs
 
 - Random Redpacket - Upgrade RedPacket to support random claim.
 - Auto distribution - Try to do automatic distribution in function `on_finalize` for distributable Redpackets.
+- Add helper functions for `struct Packet`:
+```rust
+impl <PacketId, Balance, BlockNumber, AccountId> Packet<PacketId, Balance, BlockNumber, AccountId> {
+    pub fn can_distribute(&self) -> bool {
+        ...
+    }
+    pub fn is_expired(&self, block_number: BlockNumber) -> bool {
+        ...
+    }
+    pub fn is_finished(&self) -> bool {
+        ...
+    }
+}
+```
+- Building a UI for RedPacket.
 
 
 # Best Practices
 
 ### Use safe arithmetic functions
-There are many attacks on Ethereum Smart Contract because of the type overflow. Overflow problem is offen ignored by developers, and is at high risk for attacks. It is very necessary to use safe arithmetic functions for arithmetic operations. Substrate provides [`Saturating`](https://github.com/paritytech/substrate/blob/master/primitives/arithmetic/src/traits.rs#L109) functions and [`num_traits`](https://docs.rs/num-traits/0.2.11/num_traits/) functions to do safe operations.
+There are many attacks on Ethereum Smart Contract because of the type overflow. Overflow problem is often ignored by developers, and is at high risk for attacks. It is very necessary to use safe arithmetic functions for arithmetic operations. Substrate provides [`Saturating`](https://github.com/paritytech/substrate/blob/master/primitives/arithmetic/src/traits.rs#L109) functions and [`num_traits`](https://docs.rs/num-traits/0.2.11/num_traits/) functions to do safe operations.
 
-For example, We use `saturating_mul` in `RedPacket::create` function when calculating reserved total balances.
+For example, We use `saturating_mul` in `RedPacket::create` function when calculating total reserved balances.
 
 ```rust
 pub fn create(origin, quota: BalanceOf<T>, count: u32, expires: T::BlockNumber) -> DispatchResult {
