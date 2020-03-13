@@ -2,7 +2,7 @@
 # Build a blockchain RedPacket with Substrate
 
 ### Introduction
-RedPacket is a easy way to airdrop. Anyone can claim some funds from a valid RedPacket that was created by someone, and creator's balance will be reserved to prevent insufficient balance error when distributing.
+RedPacket is an easy way to airdrop. Everyone can claim some funds from a valid RedPacket that was created by others. And creator's balance will be reserved to prevent insufficient balance error when distributing.
 
 ### Data structure and storage items
 
@@ -64,16 +64,16 @@ Interaction diagram:
 
 ### TODOs
 
-- Random Redpacket - Upgrade RedPacket to support random claim funds.
+- Random Redpacket - Upgrade RedPacket to support random claim.
 - Auto distribution - Try to do automatic distribution in function `on_finalize` for distributable Redpackets.
 
 
 # Best Practices
 
 ### Use safe arithmetic functions
-There were many attacks on Ethereum Smart Contract because of type overflow. Overflow problem is offen omited by developers, and is very easy attacked. It is very necessary to use safe arithmetic functions when we do arithmetic operations. Substrate provided [`Saturating`](https://github.com/paritytech/substrate/blob/master/primitives/arithmetic/src/traits.rs#L109) functions and [`num_traits`](https://docs.rs/num-traits/0.2.11/num_traits/) functions to do safe operations.
+There are many attacks on Ethereum Smart Contract because of the type overflow. Overflow problem is offen ignored by developers, and is at high risk for attacks. It is very necessary to use safe arithmetic functions for arithmetic operations. Substrate provides [`Saturating`](https://github.com/paritytech/substrate/blob/master/primitives/arithmetic/src/traits.rs#L109) functions and [`num_traits`](https://docs.rs/num-traits/0.2.11/num_traits/) functions to do safe operations.
 
-For example, We use `saturating_mul` in `RedPacket::create` function when caculating reserved total balances.
+For example, We use `saturating_mul` in `RedPacket::create` function when calculating reserved total balances.
 
 ```rust
 pub fn create(origin, quota: BalanceOf<T>, count: u32, expires: T::BlockNumber) -> DispatchResult {
@@ -83,14 +83,14 @@ pub fn create(origin, quota: BalanceOf<T>, count: u32, expires: T::BlockNumber) 
 }
 ```
 
-### Check first then update
-In Substrate module's function, updating storage operations still be successful before location of the error raised. That's why we must check our logic first before updating. 
+### Check first, then update
+In Substrate module's function, updating storage operations will still be successful before the location of the error raises. That's why we must check our logic first before updating. 
 
 Substrate provided `ensure` macro and `ensure_signed` to do checks:
 
 1. `ensure` - The `ensure` macro expects a condition and returns an `Err` if the condition gets false, then the function exits.
 
-2. `ensure_signed`: You should always use `ensure_signed` first in your function to check the call is permitted, otherwise your chain might be attackable.
+2. `ensure_signed`: You should always use `ensure_signed` first in your function to check if the call is permitted, otherwise your chain might be under attack.
 
 For example:
 

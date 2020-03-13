@@ -6,7 +6,7 @@
 //!
 //! ## Overview
 //!
-//! RedPacket is a easy way for airdropping, called * 红包 * in chinese.
+//! RedPacket is an easy way for airdropping, called * 红包 * in chinese.
 //! Someone can create a RedPacket that reserve some balances. 
 //! Others can claim balances from RedPacket until the RedPacket expired or finished. 
 //! Finally, creator of the RedPacket can distribute some amount to all participated accounts.
