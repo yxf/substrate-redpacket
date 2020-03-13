@@ -1,21 +1,21 @@
 
 # Build a blockchain RedPacket with Substrate
 
-#### Introduction
-RedPacket is a easy way to airdrop. Anyone can claim some funds from a valid RedPacket that was created by someone. 
+### Introduction
+RedPacket is a easy way to airdrop. Anyone can claim some funds from a valid RedPacket that was created by someone, and creator's balance will be reserved to prevent insufficient balance error when distributing.
 
-#### Data structure and storage items
+### Data structure and storage items
 
 ```rust
 #[derive(Encode, Decode, Default, Clone, PartialEq)]
 pub struct Packet<PacketId, Balance, BlockNumber, AccountId> {
-    id: PacketId, // Unique id
-    total: Balance, // Total funds supplied
-    unclaimed: Balance,
+    id: PacketId, // Unique id.
+    total: Balance, // Total funds supplied.
+    unclaimed: Balance, // Remaining balance.
     count: u32, // How many times can be claimed.
     expires_at: BlockNumber, // Expire duration
-    owner: AccountId,
-    distributed: bool,
+    owner: AccountId, // Creator's Accountid
+    distributed: bool, // Default false, set true if distributed
 }
 ```
 
@@ -32,27 +32,46 @@ decl_storage! {
 }
 ```
 
-#### Dispatchable functions 
-
-![diagram](./seq.png)
+### Dispatchable functions and events
 
 - `create` - Create a new RedPacket and reserve creator's funds.
 - `claim` - Store a claim record for distribution.
 - `distribute` - Unreserve creator's funds and do transfers.
 
 
+```rust
+decl_event!(
+    pub enum Event<T> 
+        where 
+            AccountId = <T as system::Trait>::AccountId,
+            PacketId = <T as Trait>::PacketId,
+            Balance = BalanceOf<T>
+    {
+        /// A new RedPacket was created.
+        Created(PacketId, AccountId, Balance, u32),
+        /// A new claim was created.
+        Claimed(PacketId, AccountId, Balance),
+        /// Emit after a RedPacket is distributed
+        Distributed(PacketId, AccountId, Balance),
+    }
+);
+```
 
-#### TODOs
+Interaction diagram:
 
-- Random Redpacket - Upgrade RedPacket to support random claim funds. 
+![diagram](./seq.png)
 
+
+### TODOs
+
+- Random Redpacket - Upgrade RedPacket to support random claim funds.
 - Auto distribution - Try to do automatic distribution in function `on_finalize` for distributable Redpackets.
 
 
-## Best Practices
+# Best Practices
 
-#### Use safe arithmetic functions
-There were many attacks on Ethereum Smart Contract because of type overflow. Overflow problem is offen omited by developers, and is very easy attacked. It is very necessary to use safe arithmetic functions when we do arithmetic operations. Substrate provided `trait Saturating`, we can use `saturating_add`, `saturating_sub` and `saturating_mul`. 
+### Use safe arithmetic functions
+There were many attacks on Ethereum Smart Contract because of type overflow. Overflow problem is offen omited by developers, and is very easy attacked. It is very necessary to use safe arithmetic functions when we do arithmetic operations. Substrate provided [`Saturating`](https://github.com/paritytech/substrate/blob/master/primitives/arithmetic/src/traits.rs#L109) functions and [`num_traits`](https://docs.rs/num-traits/0.2.11/num_traits/) functions to do safe operations.
 
 For example, We use `saturating_mul` in `RedPacket::create` function when caculating reserved total balances.
 
@@ -64,7 +83,7 @@ pub fn create(origin, quota: BalanceOf<T>, count: u32, expires: T::BlockNumber) 
 }
 ```
 
-#### Check first then update
+### Check first then update
 In Substrate module's function, updating storage operations still be successful before location of the error raised. That's why we must check our logic first before updating. 
 
 Substrate provided `ensure` macro and `ensure_signed` to do checks:
@@ -93,7 +112,7 @@ pub fn create(origin, quota: BalanceOf<T>, count: u32, expires: T::BlockNumber) 
 ```
 
 
-#### Use `decl_error!`
+### Use `decl_error!`
 
 Use `decl_error!` to define errors instead of string errors. It keeps code simple and makes errors easy to manage.
 
@@ -127,6 +146,6 @@ pub fn create(origin, quota: BalanceOf<T>, count: u32, expires: T::BlockNumber) 
 }
 ```
 
-#### Write more tests
+### Write more tests
 Testing is very important, especially in blockchain project. Writing test code guarantees code quality and makes your code easy to read.
 
