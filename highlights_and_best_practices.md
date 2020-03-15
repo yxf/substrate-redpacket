@@ -1,10 +1,12 @@
 
-# Build a blockchain RedPacket with Substrate
+# Highlights and best practices in developing RedPacket with Substrate
 
 ### Introduction
 RedPacket is an easy way to airdrop. Everyone can claim some funds from a valid RedPacket that was created by others. And creator's balance will be reserved to prevent insufficient balance error when distributing.
 
 ### Data structure and storage items
+
+Define `struct Packet` to wrap attributes:
 
 ```rust
 #[derive(Encode, Decode, Default, Clone, PartialEq)]
@@ -18,6 +20,7 @@ pub struct Packet<PacketId, Balance, BlockNumber, AccountId> {
     distributed: bool, // Default false, set true if distributed
 }
 ```
+Declare storage items:
 
 ```rust
 decl_storage! {
@@ -85,7 +88,7 @@ impl <PacketId, Balance, BlockNumber, AccountId> Packet<PacketId, Balance, Block
 }
 ```
 - Building a UI for RedPacket.
-
+- Other improvements.
 
 # Best Practices
 
