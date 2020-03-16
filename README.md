@@ -1,6 +1,6 @@
 # Substrate RedPacket Module
   
-  RedPacket(红包) is a easy way for airdropping. You can create a RedPacket that reserve some funds, others can claim partial funds from the RedPacket for free. Finally, the RedPacket can be distributed by creator after expiration or after claiming all funds.
+  RedPacket(红包) is an easy way for airdropping. You can create a RedPacket that reserve some funds, others can claim partial funds from the RedPacket for free. Finally, the RedPacket can be distributed by creator after expiration or after claiming all funds.
 
 
 ## Build
